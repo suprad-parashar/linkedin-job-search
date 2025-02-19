@@ -283,7 +283,7 @@ def search_recommended_jobs():
     driver = webdriver.Chrome(service=Service(CHROME_DRIVER_PATH))
     driver.maximize_window()
     login(driver)
-    jobs_data = get_jobs_recommended(driver, False)
+    jobs_data = get_jobs_recommended(driver, True)
     print(f"[INFO]\tJob Search Completed. The data has been saved at {jobs_data["save_path"]}.")
     driver.close()
 
@@ -295,28 +295,36 @@ def search_recommended_jobs():
 @click.option("--yoe", "-y", default=2, help="How many years of experience you have.")
 @click.option("--save", default=".", help="The path to save the data.")
 def daily_routine(search_query, location, easy_apply, yoe, save):
-    daily_jobs = []
+    jobs_list = []
     driver = webdriver.Chrome(service=Service(CHROME_DRIVER_PATH))
     driver.maximize_window()
     login(driver)
 
     # Get Recommended Jobs
-    daily_jobs.extend(get_jobs_recommended(driver, True)["job_data"])
+    jobs_list.extend(get_jobs_recommended(driver, True)["job_data"])
 
     # Get Specific Jobs
     timelines = [("24H", 2), ("7D", 1), ("1M", 1)]
     for timeline, page_count in timelines:
-        daily_jobs.extend(get_jobs_specific(driver, search_query, location, timeline, easy_apply, page_count, True)["job_data"])
+        jobs_list.extend(get_jobs_specific(driver, search_query, location, timeline, easy_apply, page_count, True)["job_data"])
 
     # Filter Jobs
-    daily_jobs = [job for job in daily_jobs if is_job_suitable(job, yoe + 1)]
+    daily_jobs = []
+    jobs_seen = set()
+    for job in jobs_list:
+        if not is_job_suitable(job, yoe):
+            continue
+        if job["link"] in jobs_seen:
+            continue
+        jobs_seen.add(job["link"])
+        daily_jobs.append(job)
 
     # Save Data to CSV
     columns = ["title", "company", "min_exp", "max_exp", "age_match", "overall", "primary", "secondary", "citizenship_required", "security_clearance_required", "visa_sponsorship", "link"]
     df = pd.DataFrame(daily_jobs, columns=columns)
     file_name = f"jobs_DAILY_{datetime.strftime(datetime.now(), '%d-%m-%Y')}_{get_geo_id(location)}_{easy_apply}_{search_query}.csv"
     save_path = f"{save}/{file_name}"
-    df.to_csv(save_path, index=False, )
+    df.to_csv(save_path, index=False)
     print(f"[INFO]\tDaily Routine Completed. The data has been saved at {save_path}.")
     driver.close()
 
