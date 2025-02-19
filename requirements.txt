@@ -1,0 +1,7 @@
+selenium
+pandas
+python-dotenv
+click
+tqdm
+google-generativeai
+html2text
