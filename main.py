@@ -111,11 +111,11 @@ def get_geo_id(location):
 def is_job_suitable(job_data, max_min_exp = 3, citizenship_required = False, security_clearance_required = False, visa_sponsorship = True):
     if not (job_data["min_exp"] == "N/A" or job_data["min_exp"] == "" or job_data["min_exp"] == None or int(job_data["min_exp"]) <= max_min_exp):
         return False
-    if job_data["citizenship_required"]:
+    if job_data["citizenship_required"] != citizenship_required:
         return False
-    if job_data["security_clearance_required"]:
+    if job_data["security_clearance_required"] != security_clearance_required:
         return False
-    if not job_data["visa_sponsorship"]:
+    if job_data["visa_sponsorship"] != visa_sponsorship:
         return False
     return True
 
