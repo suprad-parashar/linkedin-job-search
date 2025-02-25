@@ -14,6 +14,7 @@ import click
 from tqdm import tqdm
 import google.generativeai as genai
 import html2text
+from sentence_transformers import SentenceTransformer
 
 #Python Imports
 import json
@@ -38,6 +39,9 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL_ID")
 CHROME_DRIVER_PATH = os.getenv("CHROME_DRIVER_PATH")
 
+# Set up the Sentence Transformer Model
+sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
+
 # Constants
 SEARCH_QUERY = "software engineer"
 LOCATION = "USA"
@@ -52,6 +56,12 @@ WAIT_TIMEOUT = 10
 # Configure the Gemini AI API
 genai.configure(api_key=API_KEY)
 model = genai.GenerativeModel("gemini-2.0-flash")
+
+#Function to calculate the cosine similarity between the job description and the resume.
+def calculate_similarity(job_description, resume):
+    job_embeddings = sbert_model.encode(job_description)
+    resume_embeddings = sbert_model.encode(resume)
+    return sbert_model.similarity(job_embeddings, resume_embeddings).item() * 100
 
 # Function to login to LinkedIn. In case of two-factor authentication, you will need to manually fill in the captcha.
 def login(driver: webdriver.Chrome):
@@ -135,6 +145,13 @@ def get_jobs(driver: webdriver.Chrome, url, file_save_name = None, page_count = 
         "save_path": file_save_name
     }
 
+    # Setup Resume for the User
+    try:
+        with open("resume.txt", "r") as f:
+            resume = f.read()
+    except:
+        resume = ""
+
     # Setup Text Maker to get text from the HTML Elements.
     text_maker = html2text.HTML2Text()
     text_maker.ignore_links = True
@@ -165,7 +182,7 @@ def get_jobs(driver: webdriver.Chrome, url, file_save_name = None, page_count = 
                 job_heading = job_heading.replace(",", "")
                 article = WebDriverWait(driver, TIMEOUT).until(EC.presence_of_element_located((By.XPATH, '//*[@id="main"]/div/div[2]/div[2]/div/div[2]/div/div/div[1]/div/div[4]/article')))
                 jd = text_maker.handle(article.get_attribute("innerHTML"))
-
+            
                 # Extract Job Information using Gemini AI
                 try:
                     response = model.generate_content(f"""
@@ -173,7 +190,6 @@ def get_jobs(driver: webdriver.Chrome, url, file_save_name = None, page_count = 
                         Return a JSON containing the company's name under the key 'company',
                         minimum years of experience as 'min_exp', maximum years of experience as 'max_exp'.
                         Use 'N/A' if the min and max exp is not available.
-                        Add a key 'age_match' which is True if the job is suitable for a candidate with 2 years of experience. If the experience needed is not mentioned, set it to True anyway. Always set it to True unless the job description explicitly mentions the experience needed and it is not in the range of 1.5 to 2 years.
                         Also categorise the job into one of the following buckets after reading the job description - 
                             [Java, Python, Web Development, API Development, Rust, Full Stack, Mobile Development, Microservices, 
                             API Development, Healthcare, Generative AI, Databases, Data Engineering, DevOps, Finance,
@@ -202,7 +218,10 @@ def get_jobs(driver: webdriver.Chrome, url, file_save_name = None, page_count = 
                         Provide details on whether the job requires US citizenship or not. Use the key 'citizenship_required'. Default is False.
                         Similarly provide details on whether the job requires a security clearance or not. Use the key 'security_clearance_required'. Default is False.
                         Similarly provide details on whether the job provides visa sponsorship or not. Use the key 'visa_sponsorship'. Default is True.
-                        Generate only the JSON and nothing else.\n\n{jd}"""
+                        Generate only the JSON and nothing else.
+                                                      
+                        Job Description - 
+                        {jd}"""
                     ).text
                     response = response[8:]
                     response = response[:-4]
@@ -218,9 +237,10 @@ def get_jobs(driver: webdriver.Chrome, url, file_save_name = None, page_count = 
                 job_data["link"] = job_link.split("?")[0]
                 job_data["title"] = job_heading
                 job_data['company'] = job_data['company'].replace(",", "")
+                job_data["match_score"] = calculate_similarity(jd, resume)
                 return_dict["job_data"].append(job_data)
                 with open(file_save_name, "a") as f:
-                    f.write(f"{job_data['title']},{job_data['company']},{job_data['min_exp']},{job_data['max_exp']},{job_data['age_match']},{job_data["overall"]},{job_data['primary']},{job_data['secondary']},{job_data['citizenship_required']},{job_data['security_clearance_required']},{job_data['visa_sponsorship']},{job_data['link']}\n")
+                    f.write(f"{job_data['title']},{job_data['company']},{job_data['min_exp']},{job_data['max_exp']},{job_data["overall"]},{job_data['primary']},{job_data['secondary']},{job_data['citizenship_required']},{job_data['security_clearance_required']},{job_data['visa_sponsorship']},{job_data["match_score"]},{job_data['link']}\n")
                 print(f"[INFO]\t{info_message} - Page: {page + 1}, Job: {i + 1} completed.")
                 i += 1
             except selenium.common.exceptions.TimeoutException as e:
@@ -283,7 +303,7 @@ def search_recommended_jobs():
     driver = webdriver.Chrome(service=Service(CHROME_DRIVER_PATH))
     driver.maximize_window()
     login(driver)
-    jobs_data = get_jobs_recommended(driver, True)
+    jobs_data = get_jobs_recommended(driver, False)
     print(f"[INFO]\tJob Search Completed. The data has been saved at {jobs_data["save_path"]}.")
     driver.close()
 

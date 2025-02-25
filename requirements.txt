@@ -5,3 +5,4 @@ click
 tqdm
 google-generativeai
 html2text
+sentence-transformers
