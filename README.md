@@ -26,5 +26,7 @@ GEMINI_API_KEY="XXXXXXXXXXXXXXX"
 CHROME_DRIVER_PATH = "/path/to/chromedriver"
 GEMINI_MODEL_ID="gemini-2.0-flash" #latest
 ```
+
+Create a `resume.txt` file and Copy and Paste your resume there. It will be used to check how good your resume fits for the job.
 ## Usage
 Run the program with `--help` flag to know more about the commands and their usage.
